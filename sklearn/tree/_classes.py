@@ -71,6 +71,10 @@ CRITERIA_CLF = {
     "gini": _criterion.Gini,
     "log_loss": _criterion.Entropy,
     "entropy": _criterion.Entropy,
+    "tsallis": lambda n_outputs, n_classes, n_samples, q=None: TsallisEntropy(
+        n_outputs, n_classes, n_samples, q if q is not None else 2.0
+    ),
+
 }
 CRITERIA_REG = {
     "squared_error": _criterion.MSE,
@@ -144,6 +148,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         class_weight=None,
         ccp_alpha=0.0,
         monotonic_cst=None,
+        tsallis_q=None,
     ):
         self.criterion = criterion
         self.splitter = splitter
@@ -158,6 +163,7 @@ class BaseDecisionTree(MultiOutputMixin, BaseEstimator, metaclass=ABCMeta):
         self.class_weight = class_weight
         self.ccp_alpha = ccp_alpha
         self.monotonic_cst = monotonic_cst
+        self.tsallis_q = tsallis_q
 
     def get_depth(self):
         """Return the depth of the decision tree.
@@ -956,7 +962,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
 
     _parameter_constraints: dict = {
         **BaseDecisionTree._parameter_constraints,
-        "criterion": [StrOptions({"gini", "entropy", "log_loss"}), Hidden(Criterion)],
+        "criterion": [StrOptions({"gini", "entropy", "log_loss", "tsallis"}), Hidden(Criterion)],
         "class_weight": [dict, list, StrOptions({"balanced"}), None],
     }
 
@@ -976,6 +982,8 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
         class_weight=None,
         ccp_alpha=0.0,
         monotonic_cst=None,
+        tsallis_q=None,
+        
     ):
         super().__init__(
             criterion=criterion,
@@ -992,6 +1000,7 @@ class DecisionTreeClassifier(ClassifierMixin, BaseDecisionTree):
             monotonic_cst=monotonic_cst,
             ccp_alpha=ccp_alpha,
         )
+        self.tsallis_q = tsallis_q
 
     @_fit_context(prefer_skip_nested_validation=True)
     def fit(self, X, y, sample_weight=None, check_input=True):
@@ -1736,6 +1745,7 @@ class ExtraTreeClassifier(DecisionTreeClassifier):
             "gini",
             "log_loss",
             "entropy",
+            "tsallis_q"
         }
         tags.classifier_tags.multi_label = True
         tags.input_tags.allow_nan = allow_nan

@@ -761,6 +761,69 @@ cdef class Gini(ClassificationCriterion):
         impurity_left[0] = gini_left / self.n_outputs
         impurity_right[0] = gini_right / self.n_outputs
 
+cdef class TsallisEntropy(ClassificationCriterion):
+    """
+    Tsallis entropy impurity criterion.
+
+    For q != 1:
+        S_q = (1 - sum_k p_k^q) / (q - 1)
+    where p_k = count_k / N.
+    """
+
+    cdef double q  # Tsallis parameter
+
+    def __cinit__(self, double q=2.0):
+        self.q = q
+
+    cdef float64_t node_impurity(self) noexcept nogil:
+        cdef float64_t impurity = 0.0
+        cdef float64_t sum_pq
+        cdef float64_t count_k, p_k
+        cdef intp_t k, c
+
+        for k in range(self.n_outputs):
+            sum_pq = 0.0
+            for c in range(self.n_classes[k]):
+                count_k = self.sum_total[k, c]
+                if count_k > 0:
+                    p_k = count_k / self.weighted_n_node_samples
+                    sum_pq += pow(p_k, self.q)
+
+            impurity += (1.0 - sum_pq) / (self.q - 1.0)
+
+        return impurity / self.n_outputs
+
+    cdef void children_impurity(self,
+                                float64_t* impurity_left,
+                                float64_t* impurity_right) noexcept nogil:
+        cdef float64_t tsallis_left = 0.0
+        cdef float64_t tsallis_right = 0.0
+        cdef float64_t sum_pq_left, sum_pq_right
+        cdef float64_t count_k, p_k
+        cdef intp_t k, c
+
+        for k in range(self.n_outputs):
+            sum_pq_left = 0.0
+            sum_pq_right = 0.0
+
+            for c in range(self.n_classes[k]):
+                # Left child
+                count_k = self.sum_left[k, c]
+                if count_k > 0:
+                    p_k = count_k / self.weighted_n_left
+                    sum_pq_left += pow(p_k, self.q)
+
+                # Right child
+                count_k = self.sum_right[k, c]
+                if count_k > 0:
+                    p_k = count_k / self.weighted_n_right
+                    sum_pq_right += pow(p_k, self.q)
+
+            tsallis_left += (1.0 - sum_pq_left) / (self.q - 1.0)
+            tsallis_right += (1.0 - sum_pq_right) / (self.q - 1.0)
+
+        impurity_left[0] = tsallis_left / self.n_outputs
+        impurity_right[0] = tsallis_right / self.n_outputs
 
 cdef inline void _move_sums_regression(
     RegressionCriterion criterion,
